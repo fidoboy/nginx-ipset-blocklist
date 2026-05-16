@@ -1,0 +1,28 @@
+[Unit]
+Description=ipset RPC lookup daemon (for nginx ipset blacklist module)
+Documentation=https://github.com/yourname/goblingate
+# Must start before nginx workers, which call init_ipset_test_clnt()
+Before=nginx.service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/ipset_test_server
+Restart=on-failure
+RestartSec=3s
+
+# The daemon needs root to call `ipset test`
+User=root
+
+# Log to syslog under the identifier "ipset_test_server"
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ipset_test_server
+
+# Basic hardening — keep it tight since it runs as root
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=
+
+[Install]
+WantedBy=multi-user.target

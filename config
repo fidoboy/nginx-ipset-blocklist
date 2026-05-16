@@ -1,0 +1,43 @@
+ngx_addon_name=ngx_ipset_blocklist
+
+# Supports both static build (--add-module=) and dynamic build (--add-dynamic-module=)
+# See: https://nginx.org/en/docs/dev/development_guide.html#Modules
+
+# Auto-detect: prefer libtirpc (modern distros), fall back to libnsl (legacy)
+if test -f /usr/include/tirpc/rpc/rpc.h; then
+    IPSET_RPC_INC="/usr/include/tirpc"
+    IPSET_RPC_LIB="-ltirpc"
+elif test -f /usr/include/rpc/rpc.h; then
+    IPSET_RPC_INC=""
+    IPSET_RPC_LIB="-lnsl"
+else
+    echo "ERROR: ONC RPC headers not found."
+    echo "  Debian/Ubuntu: apt install libtirpc-dev"
+    echo "  RHEL/Fedora:   dnf install libtirpc-devel"
+    exit 1
+fi
+
+if test -n "$ngx_module_link"; then
+    # Dynamic module build (nginx >= 1.9.11)
+    ngx_module_type=HTTP
+    ngx_module_name=ngx_ipset_blocklist
+    ngx_module_srcs="$ngx_addon_dir/ngx_ipset_blocklist.c \
+                     $ngx_addon_dir/ipset_test.c \
+                     $ngx_addon_dir/ipset_test_rpc_xdr.c \
+                     $ngx_addon_dir/ipset_test_rpc_clnt.c"
+    ngx_module_libs="$IPSET_RPC_LIB"
+    ngx_module_incs="$IPSET_RPC_INC"
+    . auto/module
+else
+    # Static build
+    HTTP_MODULES="$HTTP_MODULES ngx_ipset_blocklist"
+    NGX_ADDON_SRCS="$NGX_ADDON_SRCS \
+        $ngx_addon_dir/ngx_ipset_blocklist.c \
+        $ngx_addon_dir/ipset_test.c \
+        $ngx_addon_dir/ipset_test_rpc_xdr.c \
+        $ngx_addon_dir/ipset_test_rpc_clnt.c"
+    CORE_LIBS="$CORE_LIBS $IPSET_RPC_LIB"
+    if test -n "$IPSET_RPC_INC"; then
+        CFLAGS="$CFLAGS -I$IPSET_RPC_INC"
+    fi
+fi
