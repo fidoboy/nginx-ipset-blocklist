@@ -19,9 +19,16 @@
 #include <netinet/in.h>
 #include <rpc/rpc.h>
 #include <rpc/pmap_clnt.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <errno.h>
 
 #include "ipset_test_rpc.h"
 #include "ipset_test.h"
+
+#ifndef IPSET_PATH
+#define IPSET_PATH "/usr/sbin/ipset"
+#endif
 
 /* --------------------------------------------------------------------------
  * Helper: convert raw IPv4 bytes (network order) to dotted-decimal string
@@ -53,38 +60,68 @@ static void ip6_to_str(const ip6_addr *addr, char *buf, size_t len)
  * -------------------------------------------------------------------------- */
 static int query_ipset(const char *setname, const char *ip_str)
 {
-    char cmd[256];
-    int  rc;
+    pid_t pid;
+    int status;
 
-    /*
-     * "ipset test" exits with:
-     *   0  → IP is in the set
-     *   1  → IP is NOT in the set  (or any error)
-     * Redirect stderr so kernel "not in set" messages don't pollute the log.
-     */
-    snprintf(cmd, sizeof(cmd),
-             "ipset test %s %s >/dev/null 2>&1", setname, ip_str);
+    pid = fork();
 
-    rc = system(cmd);
-
-    if (rc == -1) {
-        syslog(LOG_ERR, "ipset_test_server: system() failed for set '%s' ip '%s'",
-               setname, ip_str);
+    if (pid < 0) {
+        syslog(LOG_ERR,
+               "ipset_test_server: fork() failed: %s",
+               strerror(errno));
         return EXIT_FAILURE;
     }
 
-    if (WIFEXITED(rc)) {
-        int code = WEXITSTATUS(rc);
-        if (code == 0) {
-            syslog(LOG_DEBUG, "ipset_test_server: %s IN %s", ip_str, setname);
-            return IPADDR_IN_IPSET;
-        } else {
-            syslog(LOG_DEBUG, "ipset_test_server: %s NOT in %s", ip_str, setname);
-            return IPADDR_NOT_IN_IPSET;
-        }
+    if (pid == 0) {
+        execl(IPSET_PATH,
+              "ipset",
+              "test",
+              setname,
+              ip_str,
+              (char *)NULL);
+
+        _exit(127);
     }
 
-    syslog(LOG_ERR, "ipset_test_server: ipset exited abnormally for set '%s'", setname);
+    if (waitpid(pid, &status, 0) < 0) {
+        syslog(LOG_ERR,
+               "ipset_test_server: waitpid() failed: %s",
+               strerror(errno));
+        return EXIT_FAILURE;
+    }
+
+    if (WIFEXITED(status)) {
+
+        int code = WEXITSTATUS(status);
+
+        if (code == 0) {
+            syslog(LOG_DEBUG,
+                   "ipset_test_server: %s IN %s",
+                   ip_str,
+                   setname);
+
+            return IPADDR_IN_IPSET;
+        }
+
+        if (code == 1) {
+            syslog(LOG_DEBUG,
+                   "ipset_test_server: %s NOT in %s",
+                   ip_str,
+                   setname);
+
+            return IPADDR_NOT_IN_IPSET;
+        }
+
+        syslog(LOG_ERR,
+               "ipset_test_server: ipset exited with code %d",
+               code);
+
+        return EXIT_FAILURE;
+    }
+
+    syslog(LOG_ERR,
+           "ipset_test_server: ipset terminated abnormally");
+
     return EXIT_FAILURE;
 }
 
