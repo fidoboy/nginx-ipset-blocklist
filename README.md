@@ -3,7 +3,7 @@
 >
 > This repository is a security-hardened fork of the original **nginx_ipset_access_module**.
 >
-> The original functionality has been preserved, but several security and robustness improvements have been implemented:
+> The original functionality has been preserved, but several security, robustness and performance improvements have been implemented:
 >
 > - Replaced shell-based `system()` execution with a direct `fork()` + `exec()` implementation to eliminate shell command injection risks.
 > - Added support for both **IPv4** and **IPv6** lookups.
@@ -13,9 +13,13 @@
 > - Added graceful shutdown handling (SIGINT/SIGTERM), unregistering the RPC program from `rpcbind` before exit.
 > - Improved error handling and logging throughout the RPC server.
 > - Added configurable `IPSET_PATH` compile-time option instead of relying on the executable being present in `$PATH`.
+> - Added a lightweight in-memory TTL cache to the RPC daemon to avoid repeated `ipset test` process creation for identical queries, reducing unnecessary `fork()` + `exec()` overhead under high request rates.
+> - The RPC cache can be configured at daemon startup with optional parameters:
+>   - `-t <seconds>` sets the cache lifetime (default: **5 seconds**). Use `-t 0` to disable the cache.
+>   - `-n <entries>` sets the maximum number of cached entries (default: **256**).
 > - Improved compatibility with modern Linux distributions and current libtirpc implementations.
 >
-> These changes are intended to reduce the attack surface of the helper daemon while maintaining full compatibility with the original nginx module.
+> These changes are intended to reduce the attack surface and runtime overhead of the helper daemon while maintaining full compatibility with the original nginx module.
 
 # JarvIPs
 
