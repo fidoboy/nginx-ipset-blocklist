@@ -1,3 +1,22 @@
+> [!IMPORTANT]
+> ## About this fork
+>
+> This repository is a security-hardened fork of the original **nginx_ipset_access_module**.
+>
+> The original functionality has been preserved, but several security and robustness improvements have been implemented:
+>
+> - Replaced shell-based `system()` execution with a direct `fork()` + `exec()` implementation to eliminate shell command injection risks.
+> - Added support for both **IPv4** and **IPv6** lookups.
+> - The RPC daemon now binds **only to localhost (127.0.0.1)** instead of listening on all network interfaces.
+> - `rpcbind` can therefore be safely configured to listen only on localhost, preventing any remote access to the RPC service.
+> - Added proper TCP socket initialization (`listen()`) to avoid busy-loop conditions caused by invalid `accept()` calls under libtirpc.
+> - Added graceful shutdown handling (SIGINT/SIGTERM), unregistering the RPC program from `rpcbind` before exit.
+> - Improved error handling and logging throughout the RPC server.
+> - Added configurable `IPSET_PATH` compile-time option instead of relying on the executable being present in `$PATH`.
+> - Improved compatibility with modern Linux distributions and current libtirpc implementations.
+>
+> These changes are intended to reduce the attack surface of the helper daemon while maintaining full compatibility with the original nginx module.
+
 # JarvIPs
 
 <h5 align="center">JarvIPs – an nginx module for dynamic IP access control using Linux netfilter ipsets as a blacklists/whitelists.</h5>
