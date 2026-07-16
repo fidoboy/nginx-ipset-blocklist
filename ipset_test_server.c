@@ -4,7 +4,7 @@
  * ONC RPC daemon — answers membership queries for the nginx ipset module.
  * Implements the server side of the RPC interface defined in ipset_test_rpc.x
  *
- * Query method: calls "ipset test <setname> <ip>" via popen().
+ * Query method: executes "ipset test <setname> <ip>" directly via exec().
  * This requires the `ipset` utility to be installed and readable by root.
  *
  * Build: see Makefile
@@ -79,6 +79,11 @@ static int query_ipset(const char *setname, const char *ip_str)
               setname,
               ip_str,
               (char *)NULL);
+
+        syslog(LOG_ERR,
+           "ipset_test_server: exec(%s) failed: %s",
+           IPSET_PATH,
+           strerror(errno));
 
         _exit(127);
     }
