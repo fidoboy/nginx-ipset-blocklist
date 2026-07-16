@@ -52,6 +52,17 @@ static void ip6_to_str(const ip6_addr *addr, char *buf, size_t len)
 }
 
 /* --------------------------------------------------------------------------
+ * RPC helper: compatible wrapper for xdr_void
+ * -------------------------------------------------------------------------- */
+static bool_t
+xdr_void_compat(XDR *xdrs, void *objp)
+{
+    (void) xdrs;
+    (void) objp;
+    return TRUE;
+}
+
+/* --------------------------------------------------------------------------
  * Core: query ipset via the CLI tool
  *
  * Returns:
@@ -305,7 +316,7 @@ ipset_test_prog_1(struct svc_req *rqstp, SVCXPRT *transp)
     switch (rqstp->rq_proc) {
 
     case NULLPROC:
-        svc_sendreply(transp, (xdrproc_t) xdr_void, NULL);
+        svc_sendreply(transp, xdr_void_compat, NULL);
         return;
 
     case TEST_IPADDR_IN_IPSET:
