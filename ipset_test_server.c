@@ -65,7 +65,10 @@ xdr_void_compat(XDR *xdrs, ...)
 static void cleanup_rpc(int sig)
 {
     (void)sig;
-    _exit(0);
+    syslog(LOG_INFO, "shutting down");
+    pmap_unset(IPSET_TEST_PROG, IPSET_TEST_VERS);
+    closelog();
+    exit(0);
 }
 
 /* --------------------------------------------------------------------------
@@ -281,6 +284,13 @@ int main(int argc, char **argv)
                    "cannot bind TCP localhost socket: %s",
                    strerror(errno));
     
+            close(tcp_sock);
+            tcp_sock = -1;
+        } else if (listen(tcp_sock, SOMAXCONN) < 0) {
+            syslog(LOG_ERR,
+                   "cannot listen TCP socket: %s",
+                   strerror(errno));
+        
             close(tcp_sock);
             tcp_sock = -1;
         }
