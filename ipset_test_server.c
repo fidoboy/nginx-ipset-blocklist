@@ -55,10 +55,9 @@ static void ip6_to_str(const ip6_addr *addr, char *buf, size_t len)
  * RPC helper: compatible wrapper for xdr_void
  * -------------------------------------------------------------------------- */
 static bool_t
-xdr_void_compat(XDR *xdrs, void *objp)
+xdr_void_compat(XDR *xdrs, ...)
 {
     (void) xdrs;
-    (void) objp;
     return TRUE;
 }
 
