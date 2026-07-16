@@ -68,7 +68,7 @@ static void cleanup_rpc(int sig)
     syslog(LOG_INFO, "shutting down");
     pmap_unset(IPSET_TEST_PROG, IPSET_TEST_VERS);
     closelog();
-    exit(0);
+    exit(EXIT_SUCCESS);
 }
 
 /* --------------------------------------------------------------------------
@@ -121,20 +121,10 @@ static int query_ipset(const char *setname, const char *ip_str)
         int code = WEXITSTATUS(status);
 
         if (code == 0) {
-            syslog(LOG_DEBUG,
-                   "ipset_test_server: %s IN %s",
-                   ip_str,
-                   setname);
-
             return IPADDR_IN_IPSET;
         }
 
         if (code == 1) {
-            syslog(LOG_DEBUG,
-                   "ipset_test_server: %s NOT in %s",
-                   ip_str,
-                   setname);
-
             return IPADDR_NOT_IN_IPSET;
         }
 
