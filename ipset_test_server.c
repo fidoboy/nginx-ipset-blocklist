@@ -24,6 +24,8 @@
 #include <errno.h>
 #include <sys/socket.h>
 #include <signal.h>
+#include <time.h>
+#include <stdint.h>
 
 #include "ipset_test_rpc.h"
 #include "ipset_test.h"
@@ -31,6 +33,21 @@
 #ifndef IPSET_PATH
 #define IPSET_PATH "/usr/sbin/ipset"
 #endif
+
+static unsigned g_cache_ttl_sec = 5;
+static size_t   g_cache_cap = 256;
+static size_t   g_cache_next = 0;
+
+typedef struct {
+    int used;
+    int af;
+    char setname[IP_SET_MAXNAMELEN];
+    char ip[INET6_ADDRSTRLEN];
+    int result;
+    time_t expires_at;
+} cache_entry_t;
+
+static cache_entry_t *g_cache = NULL;
 
 /* --------------------------------------------------------------------------
  * Helper: convert raw IPv4 bytes (network order) to dotted-decimal string
@@ -67,8 +84,85 @@ static void cleanup_rpc(int sig)
     (void)sig;
     syslog(LOG_INFO, "shutting down");
     pmap_unset(IPSET_TEST_PROG, IPSET_TEST_VERS);
+    free(g_cache);
     closelog();
     exit(EXIT_SUCCESS);
+}
+
+/* --------------------------------------------------------------------------
+ * Helper: small TTL cache
+ * -------------------------------------------------------------------------- */
+
+static void usage(const char *prog)
+{
+    fprintf(stderr, "Usage: %s [-t ttl_seconds] [-n cache_entries]\n", prog);
+}
+
+static int cache_init(size_t cap)
+{
+    if (cap == 0) {
+        cap = 1;
+    }
+
+    g_cache = calloc(cap, sizeof(*g_cache));
+    if (!g_cache) {
+        syslog(LOG_ERR, "calloc(%zu) failed: %s", cap, strerror(errno));
+        return 0;
+    }
+
+    g_cache_cap = cap;
+    g_cache_next = 0;
+    return 1;
+}
+
+static int cache_lookup(int af, const char *setname, const char *ip, int *out_result)
+{
+    if (!g_cache || g_cache_ttl_sec == 0) {
+        return 0;
+    }
+
+    time_t now = time(NULL);
+
+    for (size_t i = 0; i < g_cache_cap; i++) {
+        cache_entry_t *e = &g_cache[i];
+
+        if (!e->used) {
+            continue;
+        }
+
+        if (e->expires_at <= now) {
+            e->used = 0;
+            continue;
+        }
+
+        if (e->af == af &&
+            strcmp(e->setname, setname) == 0 &&
+            strcmp(e->ip, ip) == 0) {
+
+            *out_result = e->result;
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static void cache_store(int af, const char *setname, const char *ip, int result)
+{
+    if (!g_cache || g_cache_ttl_sec == 0) {
+        return;
+    }
+
+    time_t now = time(NULL);
+    size_t slot = g_cache_next++ % g_cache_cap;
+    cache_entry_t *e = &g_cache[slot];
+
+    e->used = 1;
+    e->af = af;
+    snprintf(e->setname, sizeof(e->setname), "%s", setname);
+    snprintf(e->ip, sizeof(e->ip), "%s", ip);
+    e->result = result;
+    e->expires_at = now + (time_t)g_cache_ttl_sec;
 }
 
 /* --------------------------------------------------------------------------
@@ -147,6 +241,7 @@ static int query_ipset(const char *setname, const char *ip_str)
 int *
 test_ipaddr_in_ipset_1_svc(test_ipaddr_in_ipset_req *argp, struct svc_req *rqstp)
 {
+    (void)rqstp;
     static int result;
     char ip_str[INET6_ADDRSTRLEN];
     char setname[IP_SET_MAXNAMELEN];
@@ -165,7 +260,16 @@ test_ipaddr_in_ipset_1_svc(test_ipaddr_in_ipset_req *argp, struct svc_req *rqstp
         return &result;
     }
 
+    if (cache_lookup(argp->af, setname, ip_str, &result)) {
+        syslog(LOG_DEBUG, "cache hit: af=%d set=%s ip=%s -> %d", argp->af, setname, ip_str, result);
+        return &result;
+    }
+
     result = query_ipset(setname, ip_str);
+    if (result == IPADDR_IN_IPSET || result == IPADDR_NOT_IN_IPSET) {
+        cache_store(argp->af, setname, ip_str, result);
+    }
+
     return &result;
 }
 
@@ -200,12 +304,66 @@ int main(int argc, char **argv)
     int tcp_sock = -1;
     struct sockaddr_in tcp_addr;
     int opt = 1;
-    
+    int c;
+
+    while ((c = getopt(argc, argv, "t:n:h")) != -1) {
+        switch (c) {
+        case 't':
+        {
+            char *end1;
+            unsigned long ttl = strtoul(optarg, &end1, 10);
+            if (*end1 != '\0') {
+                fprintf(stderr, "Invalid TTL. It should be a number.\n");
+                exit(EXIT_FAILURE);
+            }
+            if (ttl > 3600) {
+                fprintf(stderr, "TTL too large. Valid values are 0 (disabled) to 3600.\n");
+                exit(EXIT_FAILURE);
+            }
+            g_cache_ttl_sec = (unsigned)ttl;
+            break;
+        }
+        case 'n':
+        {
+            char *end2;
+            unsigned long entries = strtoul(optarg, &end2, 10);
+            if (*end2 != '\0') {
+                fprintf(stderr, "Invalid cache size. It should be a number.\n");
+                exit(EXIT_FAILURE);
+            }
+
+            if (entries == 0 || entries > 65536) {
+                fprintf(stderr, "Invalid cache size. Valid values between 1 and 65536.\n");
+                exit(EXIT_FAILURE);
+            }
+            g_cache_cap = (size_t)entries;
+            break;
+        }
+        case 'h':
+        default:
+            usage(argv[0]);
+            exit(EXIT_FAILURE);
+        }
+    }
+
     openlog("ipset_test_server", LOG_PID | LOG_CONS, LOG_DAEMON);
+    
+    if (g_cache_ttl_sec != 0) {
+        if (!cache_init(g_cache_cap)) {
+            closelog();
+            exit(EXIT_FAILURE);
+        }
+    }
+    
     signal(SIGTERM, cleanup_rpc);
     signal(SIGINT, cleanup_rpc);
     syslog(LOG_INFO, "starting up");
-
+    if (g_cache_ttl_sec == 0) {
+        syslog(LOG_INFO, "cache disabled");
+    } else {
+        syslog(LOG_INFO, "cache enabled: ttl=%u sec entries=%zu", g_cache_ttl_sec, g_cache_cap);
+    }
+    
     /* Unregister any stale registration from a previous run */
     pmap_unset(IPSET_TEST_PROG, IPSET_TEST_VERS);
 
@@ -234,7 +392,6 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
     
-    
     transp = svcudp_create(udp_sock);
     if (transp == NULL) {
         syslog(LOG_ERR, "cannot create UDP service");
@@ -253,7 +410,6 @@ int main(int argc, char **argv)
         syslog(LOG_ERR, "cannot create TCP socket: %s",
                strerror(errno));
     } else {
-    
         memset(&tcp_addr, 0, sizeof(tcp_addr));
     
         tcp_addr.sin_family = AF_INET;
@@ -285,7 +441,6 @@ int main(int argc, char **argv)
             tcp_sock = -1;
         }
     }
-    
     
     if (tcp_sock >= 0)
         transp = svctcp_create(tcp_sock, 0, 0);
