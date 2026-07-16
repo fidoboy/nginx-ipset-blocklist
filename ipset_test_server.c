@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <errno.h>
+#include <sys/socket.h>
 
 #include "ipset_test_rpc.h"
 #include "ipset_test.h"
@@ -192,7 +193,35 @@ int main(int argc, char **argv)
     pmap_unset(IPSET_TEST_PROG, IPSET_TEST_VERS);
 
     /* Register over UDP */
-    transp = svcudp_create(RPC_ANYSOCK);
+    int udp_sock;
+    struct sockaddr_in udp_addr;
+    
+    udp_sock = socket(AF_INET, SOCK_DGRAM, 0);
+    
+    if (udp_sock < 0) {
+        syslog(LOG_ERR, "cannot create UDP socket: %s", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    
+    memset(&udp_addr, 0, sizeof(udp_addr));
+    
+    udp_addr.sin_family = AF_INET;
+    udp_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    udp_addr.sin_port = 0;
+    
+    if (bind(udp_sock,
+             (struct sockaddr *)&udp_addr,
+             sizeof(udp_addr)) < 0) {
+    
+        syslog(LOG_ERR, "cannot bind UDP localhost socket: %s",
+               strerror(errno));
+    
+        close(udp_sock);
+        exit(EXIT_FAILURE);
+    }
+    
+    
+    transp = svcudp_create(udp_sock);
     if (transp == NULL) {
         syslog(LOG_ERR, "cannot create UDP service");
         exit(EXIT_FAILURE);
@@ -204,7 +233,41 @@ int main(int argc, char **argv)
     }
 
     /* Register over TCP as well (optional but useful for high-load setups) */
-    transp = svctcp_create(RPC_ANYSOCK, 0, 0);
+    int tcp_sock;
+    struct sockaddr_in tcp_addr;
+    
+    tcp_sock = socket(AF_INET, SOCK_STREAM, 0);
+    
+    if (tcp_sock < 0) {
+        syslog(LOG_ERR, "cannot create TCP socket: %s",
+               strerror(errno));
+    } else {
+    
+        memset(&tcp_addr, 0, sizeof(tcp_addr));
+    
+        tcp_addr.sin_family = AF_INET;
+        tcp_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        tcp_addr.sin_port = 0;
+    
+    
+        if (bind(tcp_sock,
+                 (struct sockaddr *)&tcp_addr,
+                 sizeof(tcp_addr)) < 0) {
+    
+            syslog(LOG_ERR,
+                   "cannot bind TCP localhost socket: %s",
+                   strerror(errno));
+    
+            close(tcp_sock);
+            tcp_sock = -1;
+        }
+    }
+    
+    
+    if (tcp_sock >= 0)
+        transp = svctcp_create(tcp_sock, 0, 0);
+    else
+        transp = NULL;
     if (transp == NULL) {
         syslog(LOG_WARNING, "cannot create TCP service (UDP-only mode)");
     } else if (!svc_register(transp, IPSET_TEST_PROG, IPSET_TEST_VERS,
