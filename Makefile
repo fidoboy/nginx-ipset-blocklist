@@ -13,7 +13,7 @@ CFLAGS  = -O2 -Wall -Wextra -Wno-unused-parameter -g
 IPSET_BIN = $(shell command -v ipset)
 
 ifeq ($(IPSET_BIN),)
-    $(error ipset binary not found. Install ipset package)
+	$(error ipset binary not found. Install ipset package)
 endif
 
 CFLAGS += -DIPSET_PATH=\"$(IPSET_BIN)\"
@@ -23,16 +23,16 @@ TIRPC_INC = /usr/include/tirpc
 TIRPC_LIB = -ltirpc
 
 ifeq ($(shell test -f $(TIRPC_INC)/rpc/rpc.h && echo yes), yes)
-    # Modern: libtirpc
-    RPC_INC = -I$(TIRPC_INC)
-    RPC_LIB = $(TIRPC_LIB)
+	# Modern: libtirpc
+	RPC_INC = -I$(TIRPC_INC)
+	RPC_LIB = $(TIRPC_LIB)
 else ifeq ($(shell test -f /usr/include/rpc/rpc.h && echo yes), yes)
-    # Legacy: glibc built-in ONC RPC
-    RPC_INC =
-    RPC_LIB = -lnsl
+	# Legacy: glibc built-in ONC RPC
+	RPC_INC =
+	RPC_LIB = -lnsl
 else
-    $(error ONC RPC headers not found. \
-        Install libtirpc-dev (Debian/Ubuntu) or libtirpc-devel (RHEL/Fedora))
+	$(error ONC RPC headers not found. \
+		Install libtirpc-dev (Debian/Ubuntu) or libtirpc-devel (RHEL/Fedora))
 endif
 
 CFLAGS  += $(RPC_INC)
