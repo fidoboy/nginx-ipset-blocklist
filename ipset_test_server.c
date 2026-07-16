@@ -23,6 +23,7 @@
 #include <sys/wait.h>
 #include <errno.h>
 #include <sys/socket.h>
+#include <signal.h>
 
 #include "ipset_test_rpc.h"
 #include "ipset_test.h"
@@ -59,6 +60,19 @@ xdr_void_compat(XDR *xdrs, ...)
 {
     (void) xdrs;
     return TRUE;
+}
+
+static void cleanup_rpc(int sig)
+{
+    (void)sig;
+
+    syslog(LOG_INFO, "shutting down");
+
+    pmap_unset(IPSET_TEST_PROG, IPSET_TEST_VERS);
+
+    closelog();
+
+    exit(0);
 }
 
 /* --------------------------------------------------------------------------
@@ -202,6 +216,8 @@ int main(int argc, char **argv)
     int opt = 1;
     
     openlog("ipset_test_server", LOG_PID | LOG_CONS, LOG_DAEMON);
+    signal(SIGTERM, cleanup_rpc);
+    signal(SIGINT, cleanup_rpc);
     syslog(LOG_INFO, "starting up");
 
     /* Unregister any stale registration from a previous run */
