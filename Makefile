@@ -9,6 +9,15 @@
 CC      = gcc
 CFLAGS  = -O2 -Wall -Wextra -Wno-unused-parameter -g
 
+# ── ipset binary detection ───────────────────────────────────────────────────
+IPSET_BIN = $(shell command -v ipset)
+
+ifeq ($(IPSET_BIN),)
+    $(error ipset binary not found. Install ipset package)
+endif
+
+CFLAGS += -DIPSET_PATH=\"$(IPSET_BIN)\"
+
 # ── RPC library auto-detection ────────────────────────────────────────────────
 TIRPC_INC = /usr/include/tirpc
 TIRPC_LIB = -ltirpc
