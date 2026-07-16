@@ -13,6 +13,13 @@
 > - Added graceful shutdown handling (SIGINT/SIGTERM), unregistering the RPC program from `rpcbind` before exit.
 > - Improved error handling and logging throughout the RPC server.
 > - Added configurable `IPSET_PATH` compile-time option instead of relying on the executable being present in `$PATH`.
+> - Added support for multiple `blacklist` and `whitelist` directives within the same nginx context. Entries are now additive instead of replacing previous definitions.
+> - Maintained backward compatibility with the original directive syntax:
+>   - `blacklist "setname";` applies the same ipset to both IPv4 and IPv6.
+>   - `blacklist "setname4" "setname6";` uses separate IPv4 and IPv6 ipsets.
+>   - Multiple directives can now be combined, preserving the same IPv4/IPv6 mapping rules for each declaration.
+> - Added equivalent additive handling for `whitelist` directives.
+> - Changed access rejection responses from HTTP `403 Forbidden` to nginx connection close code `444`, avoiding unnecessary response body transmission and reducing information disclosure to blocked clients.
 > - Added a lightweight in-memory TTL cache to the RPC daemon to avoid repeated `ipset test` process creation for identical queries, reducing unnecessary `fork()` + `exec()` overhead under high request rates.
 > - The RPC cache can be configured at daemon startup with optional parameters:
 >   - `-t <seconds>` sets the cache lifetime (default: **5 seconds**). Use `-t 0` to disable the cache.
