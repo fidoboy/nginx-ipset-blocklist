@@ -65,14 +65,7 @@ xdr_void_compat(XDR *xdrs, ...)
 static void cleanup_rpc(int sig)
 {
     (void)sig;
-
-    syslog(LOG_INFO, "shutting down");
-
-    pmap_unset(IPSET_TEST_PROG, IPSET_TEST_VERS);
-
-    closelog();
-
-    exit(0);
+    _exit(0);
 }
 
 /* --------------------------------------------------------------------------
