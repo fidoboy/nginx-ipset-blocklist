@@ -187,8 +187,9 @@ int main(int argc, char **argv)
     SVCXPRT *transp;
     int udp_sock;
     struct sockaddr_in udp_addr;
-    int tcp_sock;
+    int tcp_sock = -1;
     struct sockaddr_in tcp_addr;
+    int opt = 1;
     
     openlog("ipset_test_server", LOG_PID | LOG_CONS, LOG_DAEMON);
     syslog(LOG_INFO, "starting up");
@@ -247,7 +248,12 @@ int main(int argc, char **argv)
         tcp_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
         tcp_addr.sin_port = 0;
     
-    
+        setsockopt(tcp_sock,
+                   SOL_SOCKET,
+                   SO_REUSEADDR,
+                   &opt,
+                   sizeof(opt));
+        
         if (bind(tcp_sock,
                  (struct sockaddr *)&tcp_addr,
                  sizeof(tcp_addr)) < 0) {
