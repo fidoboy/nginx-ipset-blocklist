@@ -185,7 +185,11 @@ static void ipset_test_prog_1(struct svc_req *rqstp, SVCXPRT *transp);
 int main(int argc, char **argv)
 {
     SVCXPRT *transp;
-
+    int udp_sock;
+    struct sockaddr_in udp_addr;
+    int tcp_sock;
+    struct sockaddr_in tcp_addr;
+    
     openlog("ipset_test_server", LOG_PID | LOG_CONS, LOG_DAEMON);
     syslog(LOG_INFO, "starting up");
 
@@ -193,9 +197,6 @@ int main(int argc, char **argv)
     pmap_unset(IPSET_TEST_PROG, IPSET_TEST_VERS);
 
     /* Register over UDP */
-    int udp_sock;
-    struct sockaddr_in udp_addr;
-    
     udp_sock = socket(AF_INET, SOCK_DGRAM, 0);
     
     if (udp_sock < 0) {
@@ -233,9 +234,6 @@ int main(int argc, char **argv)
     }
 
     /* Register over TCP as well (optional but useful for high-load setups) */
-    int tcp_sock;
-    struct sockaddr_in tcp_addr;
-    
     tcp_sock = socket(AF_INET, SOCK_STREAM, 0);
     
     if (tcp_sock < 0) {
