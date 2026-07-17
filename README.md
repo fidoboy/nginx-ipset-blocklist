@@ -24,6 +24,7 @@
 > - The RPC cache can be configured at daemon startup with optional parameters:
 >   - `-t <seconds>` sets the cache lifetime (default: **5 seconds**). Use `-t 0` to disable the cache.
 >   - `-n <entries>` sets the maximum number of cached entries (default: **256**).
+>   - `-v` enables verbose mode (for debugging purposes)
 > - Improved compatibility with modern Linux distributions and current libtirpc implementations.
 >
 > These changes are intended to reduce the attack surface and runtime overhead of the helper daemon while maintaining full compatibility with the original nginx module.
