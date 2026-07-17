@@ -37,6 +37,7 @@
 static unsigned g_cache_ttl_sec = 5;
 static size_t   g_cache_cap = 256;
 static size_t   g_cache_next = 0;
+static int g_verbose = 0;
 
 typedef struct {
     int used;
@@ -95,9 +96,8 @@ static void cleanup_rpc(int sig)
 
 static void usage(const char *prog)
 {
-    fprintf(stderr, "Usage: %s [-t ttl_seconds] [-n cache_entries]\n", prog);
+    fprintf(stderr, "Usage: %s [-t ttl_seconds] [-n cache_entries] [-v]\n", prog);
 }
-
 static int cache_init(size_t cap)
 {
     if (cap == 0) {
@@ -188,12 +188,22 @@ static int query_ipset(const char *setname, const char *ip_str)
     }
 
     if (pid == 0) {
-        execl(IPSET_PATH,
-              "ipset",
-              "test",
-              setname,
-              ip_str,
-              (char *)NULL);
+        if (g_verbose) {
+            execl(IPSET_PATH,
+                  "ipset",
+                  "test",
+                  setname,
+                  ip_str,
+                  (char *)NULL);
+        } else {
+            execl(IPSET_PATH,
+                  "ipset",
+                  "-q",
+                  "test",
+                  setname,
+                  ip_str,
+                  (char *)NULL);
+        }
 
         syslog(LOG_ERR,
            "ipset_test_server: exec(%s) failed: %s",
@@ -261,11 +271,16 @@ test_ipaddr_in_ipset_1_svc(test_ipaddr_in_ipset_req *argp, struct svc_req *rqstp
     }
 
     if (cache_lookup(argp->af, setname, ip_str, &result)) {
-        syslog(LOG_DEBUG, "cache hit: af=%d set=%s ip=%s -> %d", argp->af, setname, ip_str, result);
+        if (g_verbose) {
+            syslog(LOG_INFO, "cache hit: af=%d set=%s ip=%s -> %d", argp->af, setname, ip_str, result);
+        }
         return &result;
     }
 
     result = query_ipset(setname, ip_str);
+    if (g_verbose) {
+        syslog(LOG_INFO, "ipset test: af=%d set=%s ip=%s -> %d", argp->af, setname, ip_str, result);
+    }
     if (result == IPADDR_IN_IPSET || result == IPADDR_NOT_IN_IPSET) {
         cache_store(argp->af, setname, ip_str, result);
     }
@@ -306,7 +321,7 @@ int main(int argc, char **argv)
     int opt = 1;
     int c;
 
-    while ((c = getopt(argc, argv, "t:n:h")) != -1) {
+    while ((c = getopt(argc, argv, "t:n:vh")) != -1)
         switch (c) {
         case 't':
         {
@@ -339,6 +354,9 @@ int main(int argc, char **argv)
             g_cache_cap = (size_t)entries;
             break;
         }
+        case 'v':
+            g_verbose = 1;
+            break;
         case 'h':
         default:
             usage(argv[0]);
@@ -357,11 +375,14 @@ int main(int argc, char **argv)
     
     signal(SIGTERM, cleanup_rpc);
     signal(SIGINT, cleanup_rpc);
-    syslog(LOG_INFO, "starting up");
+    syslog(LOG_INFO, "starting up...");
+    if (g_verbose) {
+        syslog(LOG_INFO, "> verbose logging enabled");
+    }
     if (g_cache_ttl_sec == 0) {
-        syslog(LOG_INFO, "cache disabled");
+        syslog(LOG_INFO, "> cache disabled");
     } else {
-        syslog(LOG_INFO, "cache enabled: ttl=%u sec entries=%zu", g_cache_ttl_sec, g_cache_cap);
+        syslog(LOG_INFO, "> cache enabled: ttl=%u sec entries=%zu", g_cache_ttl_sec, g_cache_cap);
     }
     
     /* Unregister any stale registration from a previous run */
