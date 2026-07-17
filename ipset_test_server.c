@@ -321,7 +321,7 @@ int main(int argc, char **argv)
     int opt = 1;
     int c;
 
-    while ((c = getopt(argc, argv, "t:n:vh")) != -1)
+    while ((c = getopt(argc, argv, "t:n:vh")) != -1) {
         switch (c) {
         case 't':
         {
