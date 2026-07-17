@@ -21,6 +21,13 @@ static const char rpc_host[] = "127.0.0.1";
 static const char rpc_proto[] = "udp";
 static const struct timeval rpc_timeout = { 1, 0 };
 
+static bool_t
+xdr_void_compat(XDR *xdrs, ...)
+{
+    (void) xdrs;
+    return TRUE;
+}
+
 int
 main(void)
 {
@@ -40,9 +47,9 @@ main(void)
     /* Standard ONC RPC health check */
     stat = clnt_call(clnt,
                      NULLPROC,
-                     (xdrproc_t)xdr_void,
+                     xdr_void_compat,
                      NULL,
-                     (xdrproc_t)xdr_void,
+                     xdr_void_compat,
                      NULL,
                      rpc_timeout);
 
