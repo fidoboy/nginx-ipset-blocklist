@@ -25,6 +25,10 @@
 >   - `-t <seconds>` sets the cache lifetime (default: **5 seconds**). Use `-t 0` to disable the cache.
 >   - `-n <entries>` sets the maximum number of cached entries (default: **256**).
 >   - `-v` enables verbose mode (for debugging purposes)
+> - Added `ipset_test_ping`, a lightweight RPC health-check utility installed together with the server daemon.
+>   - It verifies that `rpcbind` can resolve the RPC service and that `ipset_test_server` is responding correctly.
+>   - It performs a standard ONC RPC `NULLPROC` call without executing any ipset lookup.
+>   - It is intended for external service monitors such as Monit, allowing detection of RPC registration or communication failures.
 > - Improved compatibility with modern Linux distributions and current libtirpc implementations.
 >
 > These changes are intended to reduce the attack surface and runtime overhead of the helper daemon while maintaining full compatibility with the original nginx module.
