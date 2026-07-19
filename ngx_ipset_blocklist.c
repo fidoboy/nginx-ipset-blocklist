@@ -523,6 +523,10 @@ static ngx_int_t ngx_ipset_access_handler(ngx_http_request_t *r)
 
     if (conf->priority == IPSET_PRIORITY_WHITELIST) {
 
+        // NOTE: there is a known inconsistency in RPC failure handling
+        // between this inline block and ngx_ipset_check_whitelist() —
+        // review before enabling the "whitelist" directive in production.
+
         // Whitelist first: a whitelisted IP is allowed regardless of blacklist.
         // If IP is found in any whitelist set, request passes.
         // If IP is not in any whitelist set, deny immediately.
