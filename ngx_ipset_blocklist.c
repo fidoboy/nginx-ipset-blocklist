@@ -439,14 +439,15 @@ ngx_ipset_check_blacklist(ngx_http_request_t *r,
         if (res == EXIT_FAILURE) {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                 "ipset_blocklist: RPC error querying blacklist \"%s\""
-                " — request passed through", sets[i]);
+                " for client %V — request passed through",
+                sets[i], &r->connection->addr_text);
             continue;   // fail-open for this set, try remaining sets
         }
 
         if (res == IPADDR_IN_IPSET) {
             ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
-                "ipset_blocklist: access denied by blacklist \"%s\"",
-                sets[i]);
+                "ipset_blocklist: access denied by blacklist \"%s\", client=%V",
+                sets[i], &r->connection->addr_text);
             r->keepalive = 0;
             return NGX_HTTP_CLOSE_REQUEST;
         }
@@ -483,7 +484,8 @@ ngx_ipset_check_whitelist(ngx_http_request_t *r,
         if (res == EXIT_FAILURE) {
             ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                 "ipset_blocklist: RPC error querying whitelist \"%s\""
-                " — request passed through", sets[i]);
+                " for client %V — request passed through",
+                sets[i], &r->connection->addr_text);
             continue;
         }
 
@@ -493,7 +495,8 @@ ngx_ipset_check_whitelist(ngx_http_request_t *r,
     }
 
     ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
-        "ipset_blocklist: access denied by whitelist (IP not in any set)");
+        "ipset_blocklist: access denied by whitelist (IP %V not in any set)",
+        &r->connection->addr_text);
 
     r->keepalive = 0;
     return NGX_HTTP_CLOSE_REQUEST;
@@ -546,8 +549,8 @@ static ngx_int_t ngx_ipset_access_handler(ngx_http_request_t *r)
                 if (res == EXIT_FAILURE) {
                     ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
                         "ipset_blocklist: RPC error querying whitelist \"%s\""
-                        " — request passed through",
-                        sets[i]);
+                        " for client %V — request passed through",
+                        sets[i], &r->connection->addr_text);
 
                     return NGX_OK;   // fail-open
                 }
@@ -559,7 +562,8 @@ static ngx_int_t ngx_ipset_access_handler(ngx_http_request_t *r)
             }
 
             ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
-                "ipset_blocklist: access denied by whitelist (IP not found in any set)");
+                "ipset_blocklist: access denied by whitelist (client %V not found in any set)",
+                &r->connection->addr_text);
 
             r->keepalive = 0;
             return NGX_HTTP_CLOSE_REQUEST;
