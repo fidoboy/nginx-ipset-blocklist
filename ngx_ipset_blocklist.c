@@ -447,7 +447,7 @@ ngx_ipset_check_blacklist(ngx_http_request_t *r,
         if (res == IPADDR_IN_IPSET) {
             ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
                 "ipset_blocklist: access denied by blacklist \"%s\"",
-                sets[i], &r->connection->addr_text);
+                sets[i]);
             r->keepalive = 0;
             return NGX_HTTP_CLOSE_REQUEST;
         }
